@@ -456,6 +456,14 @@ function proxyUrl(url) {
   return `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
 }
 
+// AbortSignal.timeout() was added in Safari 16. Polyfill for older iOS.
+function timeoutSignal(ms) {
+  if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms);
+  const ctrl = new AbortController();
+  setTimeout(() => ctrl.abort(), ms);
+  return ctrl.signal;
+}
+
 function stripHtml(html) {
   if (!html) return '';
   const d = document.createElement('div');
@@ -518,7 +526,7 @@ function normalise(raw, source) {
 // ── Fetchers ─────────────────────────────────────────────────────────────────
 async function fetchRSS(source) {
   try {
-    const res = await fetch(proxyUrl(source.url), { signal: AbortSignal.timeout(12000) });
+    const res = await fetch(proxyUrl(source.url), { signal: timeoutSignal(12000) });
     if (!res.ok) return [];
     const xml = await res.text();
     const doc = new DOMParser().parseFromString(xml, 'application/xml');
@@ -565,7 +573,7 @@ async function fetchReddit(source) {
   try {
     const res = await fetch(
       `https://www.reddit.com/r/${source.sub}.json?limit=25&raw_json=1`,
-      { signal: AbortSignal.timeout(10000) }
+      { signal: timeoutSignal(10000) }
     );
     if (!res.ok) return [];
     const json = await res.json();
@@ -594,7 +602,7 @@ async function fetchHN(source) {
     // Step 1: get story IDs
     const res = await fetch(
       `https://hacker-news.firebaseio.com/v0/${source.endpoint}.json`,
-      { signal: AbortSignal.timeout(10000) }
+      { signal: timeoutSignal(10000) }
     );
     if (!res.ok) return [];
     const ids = await res.json();
@@ -608,7 +616,7 @@ async function fetchHN(source) {
       const results = await Promise.allSettled(
         batch.map(id =>
           fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`,
-            { signal: AbortSignal.timeout(8000) }).then(r => r.json())
+            { signal: timeoutSignal(8000) }).then(r => r.json())
         )
       );
       for (const r of results) {
@@ -718,10 +726,7 @@ function setProgress(done, total) {
 async function crawl() {
   if (state.crawling) return;
 
-  if (!navigator.onLine) {
-    showToast('You appear to be offline');
-    return;
-  }
+  if (!navigator.onLine) showToast('You may be offline — trying anyway…');
 
   state.crawling = true;
   $btn.disabled = true;
