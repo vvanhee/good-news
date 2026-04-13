@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="Substantive positive news from science, space, and humanity">
+  <title>Good News</title>
+
+  <!-- iOS PWA -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Good News">
+  <link rel="apple-touch-icon" id="touch-icon">
+
+  <!-- Theme color -->
+  <meta name="theme-color" content="#f5f4ef" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1117" media="(prefers-color-scheme: dark)">
+
+  <style>
+    /* ── Reset & base ────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #f5f4ef;
+      --bg-card:     #ffffff;
+      --bg-hover:    #f0efe8;
+      --text:        #1a1a18;
+      --text-2:      #52524e;
+      --text-3:      #8a8a84;
+      --accent:      #2a7d4f;
+      --accent-dim:  #e6f2eb;
+      --border:      #e2e1d8;
+      --shadow:      0 1px 4px rgba(0,0,0,.07);
+      --shadow-lg:   0 4px 16px rgba(0,0,0,.11);
+      --radius:      12px;
+      --header-h:    60px;
+
+      /* category tag colours */
+      --c-space:   #1a6ea8;  --c-space-bg:   #e6f1fa;
+      --c-science: #6a3fa8;  --c-science-bg: #f0eaf9;
+      --c-human:   #a83f3f;  --c-human-bg:   #faeaea;
+      --c-tech:    #7a6020;  --c-tech-bg:    #faf5e6;
+      --c-general: #2a7d4f;  --c-general-bg: #e6f2eb;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:          #0f1117;
+        --bg-card:     #1a1d27;
+        --bg-hover:    #1f2333;
+        --text:        #e8e6df;
+        --text-2:      #9e9c94;
+        --text-3:      #5e5c56;
+        --accent:      #3db374;
+        --accent-dim:  #192e22;
+        --border:      #252836;
+        --shadow:      0 1px 4px rgba(0,0,0,.25);
+        --shadow-lg:   0 4px 16px rgba(0,0,0,.45);
+
+        --c-space:   #62aadd;  --c-space-bg:   #0e1e2e;
+        --c-science: #a87adb;  --c-science-bg: #1e122e;
+        --c-human:   #db7a7a;  --c-human-bg:   #2e1212;
+        --c-tech:    #d4ac50;  --c-tech-bg:    #2a2210;
+        --c-general: #3db374;  --c-general-bg: #0e2218;
+      }
+    }
+
+    html { font-size: 16px; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Header ──────────────────────────────────────────────────── */
+    .app-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 0 16px;
+      height: var(--header-h);
+    }
+
+    .logo-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .logo-icon {
+      font-size: 1.3rem;
+      color: var(--accent);
+      line-height: 1;
+    }
+
+    h1 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: -.02em;
+      color: var(--text);
+    }
+
+    /* ── Crawl button ────────────────────────────────────────────── */
+    #crawl-btn {
+      flex-shrink: 0;
+      padding: 8px 16px;
+      border-radius: 999px;
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      font-size: .875rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: opacity .15s, transform .1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    #crawl-btn:active { transform: scale(.96); opacity: .9; }
+    #crawl-btn:disabled { opacity: .55; cursor: default; }
+
+    .dot-pulse {
+      display: inline-block;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.7);
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: .3; transform: scale(.8); }
+      50% { opacity: 1; transform: scale(1); }
+    }
+
+    /* ── Progress bar ────────────────────────────────────────────── */
+    #progress-wrap {
+      overflow: hidden;
+      max-height: 0;
+      transition: max-height .25s ease;
+    }
+
+    #progress-wrap.visible { max-height: 28px; }
+
+    #progress-bar-track {
+      height: 3px;
+      background: var(--border);
+    }
+
+    #progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      transition: width .35s ease;
+    }
+
+    #progress-label {
+      text-align: center;
+      font-size: .72rem;
+      color: var(--text-3);
+      padding: 3px 0 2px;
+    }
+
+    /* ── Feed ────────────────────────────────────────────────────── */
+    #feed {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 16px 12px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    @media (min-width: 540px) {
+      #feed { padding: 20px 20px 48px; gap: 12px; }
+    }
+
+    /* ── Empty state ─────────────────────────────────────────────── */
+    #empty-state {
+      text-align: center;
+      padding: 72px 24px;
+      color: var(--text-3);
+    }
+
+    .empty-icon {
+      font-size: 3rem;
+      margin-bottom: 16px;
+      opacity: .5;
+    }
+
+    #empty-state h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-2);
+      margin-bottom: 8px;
+    }
+
+    #empty-state p {
+      font-size: .9rem;
+      line-height: 1.6;
+      max-width: 320px;
+      margin: 0 auto;
+    }
+
+    /* ── Article card ────────────────────────────────────────────── */
+    .article-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      box-shadow: var(--shadow);
+      transition: box-shadow .15s, transform .15s;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    @media (hover: hover) {
+      .article-card:hover {
+        box-shadow: var(--shadow-lg);
+        transform: translateY(-1px);
+      }
+    }
+
+    .card-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .source-tag {
+      font-size: .7rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      letter-spacing: .02em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .source-tag.cat-space   { color: var(--c-space);   background: var(--c-space-bg); }
+    .source-tag.cat-science { color: var(--c-science); background: var(--c-science-bg); }
+    .source-tag.cat-human   { color: var(--c-human);   background: var(--c-human-bg); }
+    .source-tag.cat-tech    { color: var(--c-tech);    background: var(--c-tech-bg); }
+    .source-tag.cat-general { color: var(--c-general); background: var(--c-general-bg); }
+
+    .card-date {
+      font-size: .72rem;
+      color: var(--text-3);
+    }
+
+    .card-title {
+      font-size: 1rem;
+      font-weight: 600;
+      line-height: 1.4;
+      color: var(--text);
+    }
+
+    @media (min-width: 540px) {
+      .card-title { font-size: 1.05rem; }
+    }
+
+    .card-excerpt {
+      font-size: .875rem;
+      color: var(--text-2);
+      line-height: 1.55;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 2px;
+      font-size: .8rem;
+      font-weight: 600;
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .card-link:hover { text-decoration: underline; }
+
+    /* ── Spinner ─────────────────────────────────────────────────── */
+    #spinner {
+      text-align: center;
+      padding: 24px;
+      color: var(--text-3);
+      font-size: .85rem;
+    }
+
+    .spin-ring {
+      display: inline-block;
+      width: 20px; height: 20px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Offline / error toast ───────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: max(24px, env(safe-area-inset-bottom, 24px));
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #1a1a1a;
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 999px;
+      font-size: .85rem;
+      font-weight: 500;
+      opacity: 0;
+      transition: transform .3s ease, opacity .3s ease;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 200;
+    }
+
+    #toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    /* ── Sentinel ────────────────────────────────────────────────── */
+    #sentinel { height: 1px; }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="logo-wrap">
+        <span class="logo-icon">◉</span>
+        <h1>Good News</h1>
+      </div>
+      <button id="crawl-btn">Crawl for Good News</button>
+    </div>
+    <div id="progress-wrap">
+      <div id="progress-bar-track"><div id="progress-bar-fill"></div></div>
+      <div id="progress-label"></div>
+    </div>
+  </header>
+
+  <main id="feed">
+    <div id="empty-state">
+      <div class="empty-icon">◎</div>
+      <h2>Find something worth reading</h2>
+      <p>Tap <strong>Crawl</strong> to scan 13 sources — science journals, substacks, space feeds, and curated communities — for substantive good news.</p>
+    </div>
+    <div id="sentinel"></div>
+  </main>
+
+  <div id="spinner" hidden>
+    <span class="spin-ring"></span>Loading more…
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+// ── Sources ──────────────────────────────────────────────────────────────────
+const SOURCES = [
+  // RSS via allorigins proxy
+  { id: 'nasa',       label: 'NASA',                  type: 'rss',     category: 'space',
+    url: 'https://www.nasa.gov/rss/dyn/breaking_news.rss' },
+  { id: 'positive',   label: 'Positive News',          type: 'rss',     category: 'general',
+    url: 'https://www.positive.news/feed/' },
+  { id: 'rtbc',       label: 'Reasons to be Cheerful', type: 'rss',     category: 'general',
+    url: 'https://reasonstobecheerful.world/feed/' },
+  { id: 'tpn',        label: 'The Progress Network',   type: 'rss',     category: 'general',
+    url: 'https://theprogressnetwork.org/feed/' },
+  { id: 'yale',       label: 'Yale E360',               type: 'rss',     category: 'science',
+    url: 'https://e360.yale.edu/rss' },
+  { id: 'scidaily',   label: 'Science Daily',           type: 'rss',     category: 'science',
+    url: 'https://www.sciencedaily.com/rss/top/science.xml' },
+  { id: 'fcrunch',    label: 'Future Crunch',           type: 'rss',     category: 'general',
+    url: 'https://futurecrunch.substack.com/feed' },
+  // Reddit (direct CORS)
+  { id: 'r-uplifting', label: 'r/UpliftingNews',       type: 'reddit',  category: 'human',    sub: 'UpliftingNews' },
+  { id: 'r-hbb',       label: 'r/HumansBeingBros',     type: 'reddit',  category: 'human',    sub: 'HumansBeingBros' },
+  { id: 'r-space',     label: 'r/space',                type: 'reddit',  category: 'space',    sub: 'space' },
+  { id: 'r-science',   label: 'r/science',              type: 'reddit',  category: 'science',  sub: 'science' },
+  { id: 'r-futurology',label: 'r/Futurology',           type: 'reddit',  category: 'general',  sub: 'Futurology' },
+  // Hacker News Firebase (direct CORS)
+  { id: 'hn',          label: 'Hacker News',            type: 'hn',      category: 'tech',     endpoint: 'beststories', limit: 200 },
+];
+
+// ── HN filter terms ──────────────────────────────────────────────────────────
+const HN_POSITIVE = [
+  'launch','launches','launched','discover','discovered','discovery','breakthrough',
+  'first ever','first time','cure','cured','solved','solution','invented','invention',
+  'achieve','achieved','achievement','milestone','success','successful',
+  'developed','development','release','released','improve','improved','improvement',
+  'record','historic','new study','new research','study finds','research finds',
+  'award','awarded','saved','rescue','rescued','restore','restored',
+  'open source','open-source','show hn','announces','announced',
+];
+const HN_NEGATIVE = [
+  'breach','breached','vulnerab','crisis','collapse','collapsed',
+  ' war ','wars','attack','attacks','shooting','killed','killing',
+  'arrest','arrested','fraud','scam','leaked','banned','lawsuit','layoff','layoffs',
+  'hacked','data breach',
+];
+
+// ── State ────────────────────────────────────────────────────────────────────
+const state = {
+  articles:  [],
+  rendered:  0,
+  crawling:  false,
+  seenUrls:  new Set(),
+};
+
+const PAGE_SIZE = 20;
+const PAGE_INC  = 10;
+
+// ── DOM refs ─────────────────────────────────────────────────────────────────
+const $feed        = document.getElementById('feed');
+const $sentinel    = document.getElementById('sentinel');
+const $btn         = document.getElementById('crawl-btn');
+const $progressWrap= document.getElementById('progress-wrap');
+const $progressBar = document.getElementById('progress-bar-fill');
+const $progressLbl = document.getElementById('progress-label');
+const $spinner     = document.getElementById('spinner');
+const $emptyState  = document.getElementById('empty-state');
+const $toast       = document.getElementById('toast');
+
+// ── Utilities ────────────────────────────────────────────────────────────────
+function proxyUrl(url) {
+  return `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+}
+
+// AbortSignal.timeout() was added in Safari 16. Polyfill for older iOS.
+function timeoutSignal(ms) {
+  if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms);
+  const ctrl = new AbortController();
+  setTimeout(() => ctrl.abort(), ms);
+  return ctrl.signal;
+}
+
+function stripHtml(html) {
+  if (!html) return '';
+  const d = document.createElement('div');
+  d.innerHTML = html;
+  return (d.textContent || d.innerText || '').replace(/\s+/g, ' ').trim();
+}
+
+function truncate(str, max) {
+  if (!str || str.length <= max) return str || '';
+  return str.slice(0, str.lastIndexOf(' ', max) || max) + '…';
+}
+
+function relativeTime(date) {
+  const ms = Date.now() - date.getTime();
+  const min = Math.floor(ms / 60000);
+  if (min < 1)  return 'just now';
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24)  return `${hr}h ago`;
+  const d = Math.floor(hr / 24);
+  if (d < 8)    return `${d}d ago`;
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function safeDate(str) {
+  if (!str) return new Date();
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? new Date() : d;
+}
+
+function titlePassesFilter(title) {
+  const lo = title.toLowerCase();
+  const bad = HN_NEGATIVE.some(t => lo.includes(t));
+  if (bad) return false;
+  return HN_POSITIVE.some(t => lo.includes(t));
+}
+
+let toastTimer;
+function showToast(msg, duration = 3500) {
+  $toast.textContent = msg;
+  $toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $toast.classList.remove('show'), duration);
+}
+
+// ── Normalise to uniform article shape ──────────────────────────────────────
+function normalise(raw, source) {
+  return {
+    url:      raw.url,
+    title:    raw.title,
+    excerpt:  truncate(raw.excerpt, 220),
+    source:   source.label,
+    sourceId: source.id,
+    category: source.category,
+    date:     raw.date,
+    dateMs:   raw.date.getTime(),
+  };
+}
+
+// ── Fetchers ─────────────────────────────────────────────────────────────────
+async function fetchRSS(source) {
+  try {
+    const res = await fetch(proxyUrl(source.url), { signal: timeoutSignal(12000) });
+    if (!res.ok) return [];
+    const xml = await res.text();
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    if (doc.querySelector('parsererror')) return [];
+
+    // Support both RSS 2.0 (<item>) and Atom (<entry>)
+    const isAtom = !!doc.querySelector('feed');
+    const items  = [...doc.querySelectorAll(isAtom ? 'entry' : 'item')];
+
+    return items.map(el => {
+      const get = (sel, attr) => {
+        const node = el.querySelector(sel);
+        if (!node) return '';
+        return attr ? (node.getAttribute(attr) || '') : (node.textContent || '').trim();
+      };
+
+      const title = get('title');
+      if (!title) return null;
+
+      // Link: Atom uses <link href="…">, RSS uses <link> text node
+      let url = isAtom
+        ? get('link', 'href') || get('link')
+        : get('link') || get('guid');
+      if (!url || url.startsWith('http') === false) return null;
+
+      const dateStr = isAtom
+        ? get('published') || get('updated')
+        : get('pubDate') || get('dc\\:date') || get('date');
+
+      // Prefer short summary over full content to keep excerpts concise
+      const rawExcerpt = get('description') || get('summary') || get('content\\:encoded') || get('content');
+
+      return normalise({
+        url,
+        title,
+        excerpt: stripHtml(rawExcerpt),
+        date:    safeDate(dateStr),
+      }, source);
+    }).filter(Boolean);
+
+  } catch { return []; }
+}
+
+async function fetchReddit(source) {
+  try {
+    const res = await fetch(
+      `https://www.reddit.com/r/${source.sub}.json?limit=25&raw_json=1`,
+      { signal: timeoutSignal(10000) }
+    );
+    if (!res.ok) return [];
+    const json = await res.json();
+    const posts = (json && json.data && json.data.children) ? json.data.children : [];
+
+    return posts
+      .map(c => c.data)
+      .filter(p => !p.stickied && !p.removed_by_category && p.score > 50)
+      .map(p => {
+        const url = p.url || `https://www.reddit.com${p.permalink}`;
+        const excerpt = p.selftext
+          ? truncate(p.selftext.replace(/\n/g, ' '), 220)
+          : '';
+        return normalise({
+          url,
+          title:   p.title,
+          excerpt,
+          date:    safeDate(new Date(p.created_utc * 1000).toISOString()),
+        }, source);
+      });
+  } catch { return []; }
+}
+
+async function fetchHN(source) {
+  try {
+    // Step 1: get story IDs
+    const res = await fetch(
+      `https://hacker-news.firebaseio.com/v0/${source.endpoint}.json`,
+      { signal: timeoutSignal(10000) }
+    );
+    if (!res.ok) return [];
+    const ids = await res.json();
+    const pool = ids.slice(0, source.limit);
+
+    // Step 2: batch-fetch in groups of 20
+    const articles = [];
+    const batchSize = 20;
+    for (let i = 0; i < pool.length; i += batchSize) {
+      const batch = pool.slice(i, i + batchSize);
+      const results = await Promise.allSettled(
+        batch.map(id =>
+          fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`,
+            { signal: timeoutSignal(8000) }).then(r => r.json())
+        )
+      );
+      for (const r of results) {
+        if (r.status !== 'fulfilled' || !r.value) continue;
+        const item = r.value;
+        if (!item.url || !item.title || item.dead || item.deleted) continue;
+        if (!titlePassesFilter(item.title)) continue;
+        articles.push(normalise({
+          url:     item.url,
+          title:   item.title,
+          excerpt: item.text ? truncate(stripHtml(item.text), 220) : '',
+          date:    safeDate(new Date(item.time * 1000).toISOString()),
+        }, source));
+      }
+    }
+    return articles;
+  } catch { return []; }
+}
+
+// ── Fetch all sources with progress ─────────────────────────────────────────
+async function fetchAllSources(onProgress) {
+  const total = SOURCES.length;
+  let done = 0;
+  onProgress(0, total);
+
+  const promises = SOURCES.map(async src => {
+    let results = [];
+    try {
+      if (src.type === 'rss')    results = await fetchRSS(src);
+      if (src.type === 'reddit') results = await fetchReddit(src);
+      if (src.type === 'hn')     results = await fetchHN(src);
+    } catch { /* swallow */ }
+    done++;
+    onProgress(done, total);
+    return results;
+  });
+
+  const settled = await Promise.allSettled(promises);
+  return settled.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+}
+
+// ── Merge + sort ─────────────────────────────────────────────────────────────
+function mergeArticles(fresh) {
+  for (const a of fresh) {
+    if (!a.url || state.seenUrls.has(a.url)) continue;
+    state.seenUrls.add(a.url);
+    state.articles.push(a);
+  }
+  state.articles.sort((a, b) => b.dateMs - a.dateMs);
+}
+
+// ── Render ───────────────────────────────────────────────────────────────────
+function buildCard(article) {
+  const el = document.createElement('article');
+  el.className = 'article-card';
+
+  const dateStr = relativeTime(article.date);
+  const excerptHtml = article.excerpt
+    ? `<p class="card-excerpt">${article.excerpt}</p>` : '';
+
+  el.innerHTML = `
+    <div class="card-meta">
+      <span class="source-tag cat-${article.category}">${article.source}</span>
+      <time class="card-date">${dateStr}</time>
+    </div>
+    <h2 class="card-title">${article.title}</h2>
+    ${excerptHtml}
+    <a class="card-link" href="${article.url}" target="_blank" rel="noopener noreferrer">Read article ↗</a>
+  `;
+  return el;
+}
+
+function renderBatch(count = PAGE_SIZE) {
+  const batch = state.articles.slice(state.rendered, state.rendered + count);
+  if (!batch.length) return;
+
+  const frag = document.createDocumentFragment();
+  for (const a of batch) frag.appendChild(buildCard(a));
+  $feed.insertBefore(frag, $sentinel);
+  state.rendered += batch.length;
+
+  $spinner.hidden = state.rendered >= state.articles.length;
+}
+
+// ── Infinite scroll ──────────────────────────────────────────────────────────
+function setupObserver() {
+  try {
+    var observer = new IntersectionObserver(function(entries) {
+      if (entries[0].isIntersecting && !state.crawling) {
+        if (state.rendered < state.articles.length) {
+          renderBatch(PAGE_INC);
+        }
+      }
+    }, { rootMargin: '300px' });
+    observer.observe($sentinel);
+  } catch(e) {
+    // IntersectionObserver not available; infinite scroll disabled, crawl still works
+  }
+}
+
+// ── Progress UI ───────────────────────────────────────────────────────────────
+function setProgress(done, total) {
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  $progressBar.style.width = `${pct}%`;
+  $progressLbl.textContent = done < total
+    ? `Scanning ${done} of ${total} sources…`
+    : `Done — ${state.articles.length} articles found`;
+}
+
+// ── Main crawl ────────────────────────────────────────────────────────────────
+async function crawl() {
+  if (state.crawling) return;
+
+  if (!navigator.onLine) showToast('You may be offline — trying anyway…');
+
+  state.crawling = true;
+  $btn.disabled = true;
+  $btn.innerHTML = '<span class="dot-pulse"></span> Crawling…';
+  $progressWrap.classList.add('visible');
+  $emptyState && ($emptyState.hidden = true);
+
+  try {
+    const fresh = await fetchAllSources((done, total) => setProgress(done, total));
+    const before = state.articles.length;
+    mergeArticles(fresh);
+
+    // Clear rendered cards, re-render from scratch (sorted)
+    const cards = $feed.querySelectorAll('.article-card');
+    cards.forEach(c => c.remove());
+    state.rendered = 0;
+
+    renderBatch(PAGE_SIZE);
+
+    const added = state.articles.length - before;
+    if (state.articles.length === 0) {
+      showToast('No articles found — sources may be temporarily unavailable');
+      $emptyState && ($emptyState.hidden = false);
+    } else if (before > 0 && added === 0) {
+      showToast('No new articles since last crawl');
+    }
+
+  } finally {
+    state.crawling = false;
+    $btn.disabled = false;
+    $btn.textContent = 'Crawl Again';
+    // Keep progress bar visible briefly then collapse
+    setTimeout(() => $progressWrap.classList.remove('visible'), 2000);
+  }
+}
+
+// ── PWA: generate touch icon at runtime ──────────────────────────────────────
+function generateTouchIcon() {
+  try {
+    const c = document.createElement('canvas');
+    c.width = c.height = 180;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#2a7d4f';
+    ctx.fillRect(0, 0, 180, 180);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 68px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('GN', 90, 90);
+    document.getElementById('touch-icon').href = c.toDataURL('image/png');
+  } catch { /* canvas may be unavailable */ }
+}
+
+// ── Web App Manifest (for Android/Chrome PWA) ─────────────────────────────────
+function injectManifest() {
+  const m = {
+    name: 'Good News Finder', short_name: 'Good News',
+    display: 'standalone', start_url: '.', scope: '.',
+    background_color: '#0f1117', theme_color: '#2a7d4f',
+  };
+  const link = document.createElement('link');
+  link.rel = 'manifest';
+  link.href = 'data:application/manifest+json,' + encodeURIComponent(JSON.stringify(m));
+  document.head.appendChild(link);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+// Show any JS errors visibly (helps debug on iPhone where DevTools aren't easy)
+window.onerror = function(msg, src, line) {
+  showToast('JS error: ' + msg + ' (line ' + line + ')', 8000);
+};
+
+// Script is at end of <body> so DOM is already ready — no need to wait for
+// DOMContentLoaded. Attach button first so a later setup error can't block it.
+$btn.addEventListener('click', crawl);
+generateTouchIcon();
+injectManifest();
+setupObserver();
+</script>
+
+</body>
+</html>
