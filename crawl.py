@@ -23,9 +23,9 @@ RSS_SOURCES = [
     {'id': 'tpn',      'label': 'The Progress Network',   'category': 'general',
      'url': 'https://theprogressnetwork.org/feed/'},
     {'id': 'yale',     'label': 'Yale E360',               'category': 'science',
-     'url': 'https://e360.yale.edu/feed.xml'},
+     'url': 'https://e360.yale.edu/feed.xml',   'filter': True},
     {'id': 'scidaily', 'label': 'Science Daily',           'category': 'science',
-     'url': 'https://www.sciencedaily.com/rss/top/science.xml'},
+     'url': 'https://www.sciencedaily.com/rss/top/science.xml', 'filter': True},
     {'id': 'fcrunch',  'label': 'Future Crunch',           'category': 'general',
      'url': 'https://futurecrunch.beehiiv.com/feed'},
 ]
@@ -47,11 +47,54 @@ HN_POSITIVE = [
     'award', 'awarded', 'saved', 'rescue', 'rescued', 'restore', 'restored',
     'open source', 'open-source', 'show hn', 'announces', 'announced',
 ]
-HN_NEGATIVE = [
-    'breach', 'breached', 'vulnerab', 'crisis', 'collapse', 'collapsed',
-    ' war ', 'wars', 'attack', 'attacks', 'shooting', 'killed', 'killing',
-    'arrest', 'arrested', 'fraud', 'scam', 'leaked', 'banned', 'lawsuit',
-    'layoff', 'layoffs', 'hacked', 'data breach',
+
+# Applied to HN (combined with positive requirement) and to RSS sources
+# marked filter=True (negative check only — science titles don't need positive keywords).
+NEGATIVE_TERMS = [
+    # Security / crime
+    'breach', 'breached', 'hack', 'hacked', 'vulnerab',
+    'fraud', 'scam', 'leaked', 'data breach', 'ransomware', 'phishing',
+    'arrest', 'arrested', 'lawsuit', 'indicted', 'convicted',
+    'murder', 'murdered', 'murders', 'homicide',
+    'shooting', 'shot dead', 'gun violence',
+    'trafficking', 'smuggling', 'kidnap',
+    # Conflict / politics
+    ' war ', ' wars ', 'warfare', 'combat', 'airstrike', 'missile strike',
+    'attack', 'attacks', 'attacked', 'bombing', 'explosion', 'exploded',
+    'coup', 'insurgent', 'terrorist', 'terrorism',
+    'killing', 'killed', 'death toll', 'casualties',
+    # Corporate / economic bad news
+    'layoff', 'layoffs', 'laid off', 'job cut', 'mass firing',
+    'banned', 'ban ', 'shutdown', 'collapse', 'collapsed', 'bankrupt',
+    'recession', 'crash ', 'market crash',
+    # Alarming framing words (the ones that signal doom-and-gloom journalism)
+    'alarming', 'alarmingly',
+    'catastroph',          # catastrophe, catastrophic, catastrophically
+    'chilling',
+    'concerning',
+    'deadly',
+    'devastat',            # devastating, devastation, devastate
+    ' dire', 'dire ',   # "dire warning", "situation is dire" — avoids 'directed' etc.
+    'disaster', 'disastrous',
+    'destructi',           # destruction, destructive, destructively
+    'deteriorat',          # deteriorating, deterioration
+    'epidemic',
+    'horrific', 'horrifying',
+    'outbreak',
+    'plague',
+    'scary',
+    'suffer', 'suffering',
+    'terrifying', 'terrified',
+    'threaten', 'threatens', 'threatened', 'threatening',
+    'tragic', 'tragedy',
+    'troubling',
+    'violent', 'violence',
+    'wildfire',
+    'worrying', 'worrisome',
+    # Corruption / scandal
+    'corrupt', 'corruption', 'scandal', 'misconduct', 'bribery',
+    # Crisis / emergency framing
+    'crisis', 'crises', 'emergency', 'famine', 'starvation',
 ]
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
@@ -105,9 +148,15 @@ def fetch_url(url, timeout=15):
         print(f'  WARN: {url} — {e}')
         return None
 
-def title_passes_hn_filter(title):
+def title_passes_negative_filter(title):
+    """Returns False if the title contains any negative/alarming framing term."""
     lo = title.lower()
-    if any(neg in lo for neg in HN_NEGATIVE):
+    return not any(neg in lo for neg in NEGATIVE_TERMS)
+
+def title_passes_hn_filter(title):
+    """HN requires a positive signal AND no negative terms."""
+    lo = title.lower()
+    if any(neg in lo for neg in NEGATIVE_TERMS):
         return False
     return any(pos in lo for pos in HN_POSITIVE)
 
@@ -180,7 +229,12 @@ def crawl_rss():
         xml = fetch_url(src['url'])
         if xml:
             arts = parse_rss(src, xml)
-            print(f'     {len(arts)} articles')
+            if src.get('filter'):
+                before = len(arts)
+                arts = [a for a in arts if title_passes_negative_filter(a['title'])]
+                print(f'     {len(arts)} articles ({before - len(arts)} filtered)')
+            else:
+                print(f'     {len(arts)} articles')
             all_articles.extend(arts)
     return all_articles
 
