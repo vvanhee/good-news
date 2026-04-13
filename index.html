@@ -136,6 +136,18 @@
     #crawl-btn:active { transform: scale(.96); opacity: .9; }
     #crawl-btn:disabled { opacity: .55; cursor: default; }
 
+    .header-meta {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 0 16px 6px;
+      text-align: right;
+    }
+
+    .crawled-at {
+      font-size: .72rem;
+      color: var(--text-3);
+    }
+
     .dot-pulse {
       display: inline-block;
       width: 6px; height: 6px;
@@ -358,19 +370,18 @@
         <span class="logo-icon">◉</span>
         <h1>Good News</h1>
       </div>
-      <button id="crawl-btn">Crawl for Good News</button>
+      <button id="crawl-btn">↻ Refresh</button>
     </div>
-    <div id="progress-wrap">
-      <div id="progress-bar-track"><div id="progress-bar-fill"></div></div>
-      <div id="progress-label"></div>
+    <div class="header-meta">
+      <span id="crawled-at" class="crawled-at"></span>
     </div>
   </header>
 
   <main id="feed">
     <div id="empty-state">
       <div class="empty-icon">◎</div>
-      <h2>Find something worth reading</h2>
-      <p>Tap <strong>Crawl</strong> to scan 13 sources — science journals, substacks, space feeds, and curated communities — for substantive good news.</p>
+      <h2>Loading news…</h2>
+      <p>Fetching the latest articles from science journals, substacks, space feeds, and curated communities.</p>
     </div>
     <div id="sentinel"></div>
   </main>
@@ -385,440 +396,160 @@
 <script>
 'use strict';
 
-// ── Sources ──────────────────────────────────────────────────────────────────
-const SOURCES = [
-  // RSS via allorigins proxy
-  { id: 'nasa',       label: 'NASA',                  type: 'rss',     category: 'space',
-    url: 'https://www.nasa.gov/news-release/feed' },
-  { id: 'positive',   label: 'Positive News',          type: 'rss',     category: 'general',
-    url: 'https://www.positive.news/feed/' },
-  { id: 'rtbc',       label: 'Reasons to be Cheerful', type: 'rss',     category: 'general',
-    url: 'https://reasonstobecheerful.world/feed/' },
-  { id: 'tpn',        label: 'The Progress Network',   type: 'rss',     category: 'general',
-    url: 'https://theprogressnetwork.org/feed/' },
-  { id: 'yale',       label: 'Yale E360',               type: 'rss',     category: 'science',
-    url: 'https://e360.yale.edu/feed.xml' },
-  { id: 'scidaily',   label: 'Science Daily',           type: 'rss',     category: 'science',
-    url: 'https://www.sciencedaily.com/rss/top/science.xml' },
-  { id: 'fcrunch',    label: 'Future Crunch',           type: 'rss',     category: 'general',
-    url: 'https://futurecrunch.beehiiv.com/feed' },
-  // Reddit (direct CORS)
-  { id: 'r-uplifting', label: 'r/UpliftingNews',       type: 'reddit',  category: 'human',    sub: 'UpliftingNews' },
-  { id: 'r-hbb',       label: 'r/HumansBeingBros',     type: 'reddit',  category: 'human',    sub: 'HumansBeingBros' },
-  { id: 'r-space',     label: 'r/space',                type: 'reddit',  category: 'space',    sub: 'space' },
-  { id: 'r-science',   label: 'r/science',              type: 'reddit',  category: 'science',  sub: 'science' },
-  { id: 'r-futurology',label: 'r/Futurology',           type: 'reddit',  category: 'general',  sub: 'Futurology' },
-  // Hacker News Firebase (direct CORS)
-  { id: 'hn',          label: 'Hacker News',            type: 'hn',      category: 'tech',     endpoint: 'beststories', limit: 200 },
-];
+// Articles are pre-crawled server-side every 6 hours by GitHub Actions
+// and stored in data/articles.json. This page just loads that file.
 
-// ── HN filter terms ──────────────────────────────────────────────────────────
-const HN_POSITIVE = [
-  'launch','launches','launched','discover','discovered','discovery','breakthrough',
-  'first ever','first time','cure','cured','solved','solution','invented','invention',
-  'achieve','achieved','achievement','milestone','success','successful',
-  'developed','development','release','released','improve','improved','improvement',
-  'record','historic','new study','new research','study finds','research finds',
-  'award','awarded','saved','rescue','rescued','restore','restored',
-  'open source','open-source','show hn','announces','announced',
-];
-const HN_NEGATIVE = [
-  'breach','breached','vulnerab','crisis','collapse','collapsed',
-  ' war ','wars','attack','attacks','shooting','killed','killing',
-  'arrest','arrested','fraud','scam','leaked','banned','lawsuit','layoff','layoffs',
-  'hacked','data breach',
-];
-
-// ── State ────────────────────────────────────────────────────────────────────
-const state = {
-  articles:  [],   // full deduplicated array, sorted newest-first
-  display:   [],   // interleaved display order
-  rendered:  0,
-  crawling:  false,
-  seenUrls:  new Set(),
-};
-
+// ── State ─────────────────────────────────────────────────────────────────────
+const state = { articles: [], display: [], rendered: 0, loading: false };
 const PAGE_SIZE = 20;
 const PAGE_INC  = 10;
 
-// ── DOM refs ─────────────────────────────────────────────────────────────────
-const $feed        = document.getElementById('feed');
-const $sentinel    = document.getElementById('sentinel');
-const $btn         = document.getElementById('crawl-btn');
-const $progressWrap= document.getElementById('progress-wrap');
-const $progressBar = document.getElementById('progress-bar-fill');
-const $progressLbl = document.getElementById('progress-label');
-const $spinner     = document.getElementById('spinner');
-const $emptyState  = document.getElementById('empty-state');
-const $toast       = document.getElementById('toast');
+// ── DOM refs ──────────────────────────────────────────────────────────────────
+const $feed      = document.getElementById('feed');
+const $sentinel  = document.getElementById('sentinel');
+const $btn       = document.getElementById('crawl-btn');
+const $spinner   = document.getElementById('spinner');
+const $emptyState= document.getElementById('empty-state');
+const $toast     = document.getElementById('toast');
+const $crawledAt = document.getElementById('crawled-at');
 
-// ── Utilities ────────────────────────────────────────────────────────────────
-// Try two CORS proxies in sequence; returns response text or null.
-// allorigins.win is the primary but is an unreliable free service —
-// corsproxy.io is the fallback.
-const PROXIES = [
-  'https://api.allorigins.win/raw?url=',
-  'https://corsproxy.io/?',
-];
-async function proxiedText(url) {
-  for (var i = 0; i < PROXIES.length; i++) {
-    try {
-      var res = await fetch(PROXIES[i] + encodeURIComponent(url), { signal: timeoutSignal(12000) });
-      if (res.ok) {
-        var text = await res.text();
-        if (text && text.length > 100) return text;
-      }
-    } catch(e) { /* try next proxy */ }
-  }
-  return null;
-}
-
-// AbortSignal.timeout() was added in Safari 16. Polyfill for older iOS.
-function timeoutSignal(ms) {
-  if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms);
-  const ctrl = new AbortController();
-  setTimeout(() => ctrl.abort(), ms);
-  return ctrl.signal;
-}
-
-function stripHtml(html) {
-  if (!html) return '';
-  const d = document.createElement('div');
-  d.innerHTML = html;
-  return (d.textContent || d.innerText || '').replace(/\s+/g, ' ').trim();
-}
-
-function truncate(str, max) {
-  if (!str || str.length <= max) return str || '';
-  return str.slice(0, str.lastIndexOf(' ', max) || max) + '…';
-}
-
+// ── Utilities ─────────────────────────────────────────────────────────────────
 function relativeTime(date) {
   const ms = Date.now() - date.getTime();
   const min = Math.floor(ms / 60000);
   if (min < 1)  return 'just now';
-  if (min < 60) return `${min}m ago`;
+  if (min < 60) return min + 'm ago';
   const hr = Math.floor(min / 60);
-  if (hr < 24)  return `${hr}h ago`;
+  if (hr < 24)  return hr + 'h ago';
   const d = Math.floor(hr / 24);
-  if (d < 8)    return `${d}d ago`;
+  if (d < 8)    return d + 'd ago';
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-function safeDate(str) {
-  if (!str) return new Date();
-  const d = new Date(str);
-  return isNaN(d.getTime()) ? new Date() : d;
-}
-
-function titlePassesFilter(title) {
-  const lo = title.toLowerCase();
-  const bad = HN_NEGATIVE.some(t => lo.includes(t));
-  if (bad) return false;
-  return HN_POSITIVE.some(t => lo.includes(t));
-}
-
 let toastTimer;
-function showToast(msg, duration = 3500) {
+function showToast(msg, duration) {
+  duration = duration || 4000;
   $toast.textContent = msg;
   $toast.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => $toast.classList.remove('show'), duration);
+  toastTimer = setTimeout(function() { $toast.classList.remove('show'); }, duration);
 }
 
-// ── Normalise to uniform article shape ──────────────────────────────────────
-function normalise(raw, source) {
-  return {
-    url:      raw.url,
-    title:    raw.title,
-    excerpt:  truncate(raw.excerpt, 220),
-    source:   source.label,
-    sourceId: source.id,
-    category: source.category,
-    date:     raw.date,
-    dateMs:   raw.date.getTime(),
-  };
-}
-
-// ── Fetchers ─────────────────────────────────────────────────────────────────
-async function fetchRSS(source) {
-  try {
-    const xml = await proxiedText(source.url);
-    if (!xml) return [];
-    const doc = new DOMParser().parseFromString(xml, 'application/xml');
-    if (doc.querySelector('parsererror')) return [];
-
-    // Support both RSS 2.0 (<item>) and Atom (<entry>)
-    const isAtom = !!doc.querySelector('feed');
-    const items  = [...doc.querySelectorAll(isAtom ? 'entry' : 'item')];
-
-    return items.map(el => {
-      const get = (sel, attr) => {
-        const node = el.querySelector(sel);
-        if (!node) return '';
-        return attr ? (node.getAttribute(attr) || '') : (node.textContent || '').trim();
-      };
-
-      const title = get('title');
-      if (!title) return null;
-
-      // Link: Atom uses <link href="…">, RSS uses <link> text node
-      let url = isAtom
-        ? get('link', 'href') || get('link')
-        : get('link') || get('guid');
-      if (!url || url.startsWith('http') === false) return null;
-
-      const dateStr = isAtom
-        ? get('published') || get('updated')
-        : get('pubDate') || get('dc\\:date') || get('date');
-
-      // Prefer short summary over full content to keep excerpts concise
-      const rawExcerpt = get('description') || get('summary') || get('content\\:encoded') || get('content');
-
-      return normalise({
-        url,
-        title,
-        excerpt: stripHtml(rawExcerpt),
-        date:    safeDate(dateStr),
-      }, source);
-    }).filter(Boolean);
-
-  } catch { return []; }
-}
-
-async function fetchReddit(source) {
-  try {
-    const res = await fetch(
-      `https://www.reddit.com/r/${source.sub}.json?limit=25&raw_json=1`,
-      { signal: timeoutSignal(10000) }
-    );
-    if (!res.ok) return [];
-    const json = await res.json();
-    const posts = (json && json.data && json.data.children) ? json.data.children : [];
-
-    return posts
-      .map(c => c.data)
-      .filter(p => !p.stickied && !p.removed_by_category && p.score > 50)
-      .map(p => {
-        const url = p.url || `https://www.reddit.com${p.permalink}`;
-        const excerpt = p.selftext
-          ? truncate(p.selftext.replace(/\n/g, ' '), 220)
-          : '';
-        return normalise({
-          url,
-          title:   p.title,
-          excerpt,
-          date:    safeDate(new Date(p.created_utc * 1000).toISOString()),
-        }, source);
-      });
-  } catch { return []; }
-}
-
-async function fetchHN(source) {
-  try {
-    // Step 1: get story IDs
-    const res = await fetch(
-      `https://hacker-news.firebaseio.com/v0/${source.endpoint}.json`,
-      { signal: timeoutSignal(10000) }
-    );
-    if (!res.ok) return [];
-    const ids = await res.json();
-    const pool = ids.slice(0, source.limit);
-
-    // Step 2: batch-fetch in groups of 20
-    const articles = [];
-    const batchSize = 20;
-    for (let i = 0; i < pool.length; i += batchSize) {
-      const batch = pool.slice(i, i + batchSize);
-      const results = await Promise.allSettled(
-        batch.map(id =>
-          fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`,
-            { signal: timeoutSignal(8000) }).then(r => r.json())
-        )
-      );
-      for (const r of results) {
-        if (r.status !== 'fulfilled' || !r.value) continue;
-        const item = r.value;
-        if (!item.url || !item.title || item.dead || item.deleted) continue;
-        if (!titlePassesFilter(item.title)) continue;
-        articles.push(normalise({
-          url:     item.url,
-          title:   item.title,
-          excerpt: item.text ? truncate(stripHtml(item.text), 220) : '',
-          date:    safeDate(new Date(item.time * 1000).toISOString()),
-        }, source));
-      }
-    }
-    return articles;
-  } catch { return []; }
-}
-
-// ── Fetch all sources with progress ─────────────────────────────────────────
-async function fetchAllSources(onProgress) {
-  const total = SOURCES.length;
-  let done = 0;
-  onProgress(0, total);
-
-  const promises = SOURCES.map(async src => {
-    let results = [];
-    try {
-      if (src.type === 'rss')    results = await fetchRSS(src);
-      if (src.type === 'reddit') results = await fetchReddit(src);
-      if (src.type === 'hn')     results = await fetchHN(src);
-    } catch { /* swallow */ }
-    done++;
-    onProgress(done, total);
-    return results;
-  });
-
-  const settled = await Promise.allSettled(promises);
-  return settled.flatMap(r => r.status === 'fulfilled' ? r.value : []);
-}
-
-// ── Merge + sort ─────────────────────────────────────────────────────────────
-function mergeArticles(fresh) {
-  for (const a of fresh) {
-    if (!a.url || state.seenUrls.has(a.url)) continue;
-    state.seenUrls.add(a.url);
-    state.articles.push(a);
-  }
-  state.articles.sort((a, b) => b.dateMs - a.dateMs);
-}
-
-// ── Interleave by source ──────────────────────────────────────────────────────
-// Round-robins through sources so every source gets a slot before any source
-// gets a second slot. Within each round, articles are sorted newest-first so
-// the feed still reads roughly chronologically while showing source variety.
+// ── Interleave by source (round-robin) ────────────────────────────────────────
+// Takes one article from each source per round so every source appears
+// at the top before any source gets a second slot.
 function buildDisplayOrder(articles) {
   const buckets = {};
   const sourceIds = [];
-  for (const a of articles) {
+  for (let i = 0; i < articles.length; i++) {
+    const a = articles[i];
     if (!buckets[a.sourceId]) { buckets[a.sourceId] = []; sourceIds.push(a.sourceId); }
-    buckets[a.sourceId].push(a); // already newest-first from mergeArticles sort
+    buckets[a.sourceId].push(a);
   }
   const result = [];
   let hasMore = true;
   while (hasMore) {
     hasMore = false;
     const round = [];
-    for (const id of sourceIds) {
+    for (let j = 0; j < sourceIds.length; j++) {
+      const id = sourceIds[j];
       if (buckets[id].length > 0) { round.push(buckets[id].shift()); hasMore = true; }
     }
-    round.sort((a, b) => b.dateMs - a.dateMs); // newest leads within each round
-    for (const a of round) result.push(a);
+    round.sort(function(a, b) { return b.dateMs - a.dateMs; });
+    for (let k = 0; k < round.length; k++) result.push(round[k]);
   }
   return result;
 }
 
-// ── Render ───────────────────────────────────────────────────────────────────
+// ── Render ────────────────────────────────────────────────────────────────────
 function buildCard(article) {
   const el = document.createElement('article');
   el.className = 'article-card';
-
-  const dateStr = relativeTime(article.date);
+  const dateStr = relativeTime(new Date(article.dateMs));
   const excerptHtml = article.excerpt
-    ? `<p class="card-excerpt">${article.excerpt}</p>` : '';
-
-  el.innerHTML = `
-    <div class="card-meta">
-      <span class="source-tag cat-${article.category}">${article.source}</span>
-      <time class="card-date">${dateStr}</time>
-    </div>
-    <h2 class="card-title">${article.title}</h2>
-    ${excerptHtml}
-    <a class="card-link" href="${article.url}" target="_blank" rel="noopener noreferrer">Read article ↗</a>
-  `;
+    ? '<p class="card-excerpt">' + article.excerpt + '</p>' : '';
+  el.innerHTML =
+    '<div class="card-meta">' +
+      '<span class="source-tag cat-' + article.category + '">' + article.source + '</span>' +
+      '<time class="card-date">' + dateStr + '</time>' +
+    '</div>' +
+    '<h2 class="card-title">' + article.title + '</h2>' +
+    excerptHtml +
+    '<a class="card-link" href="' + article.url + '" target="_blank" rel="noopener noreferrer">Read article ↗</a>';
   return el;
 }
 
-function renderBatch(count = PAGE_SIZE) {
+function renderBatch(count) {
+  count = count || PAGE_SIZE;
   const batch = state.display.slice(state.rendered, state.rendered + count);
   if (!batch.length) return;
-
   const frag = document.createDocumentFragment();
-  for (const a of batch) frag.appendChild(buildCard(a));
+  for (let i = 0; i < batch.length; i++) frag.appendChild(buildCard(batch[i]));
   $feed.insertBefore(frag, $sentinel);
   state.rendered += batch.length;
-
   $spinner.hidden = state.rendered >= state.display.length;
 }
 
-// ── Infinite scroll ──────────────────────────────────────────────────────────
+// ── Infinite scroll ───────────────────────────────────────────────────────────
 function setupObserver() {
   try {
-    var observer = new IntersectionObserver(function(entries) {
-      if (entries[0].isIntersecting && !state.crawling) {
-        if (state.rendered < state.display.length) {
-          renderBatch(PAGE_INC);
-        }
+    const observer = new IntersectionObserver(function(entries) {
+      if (entries[0].isIntersecting && !state.loading && state.rendered < state.display.length) {
+        renderBatch(PAGE_INC);
       }
     }, { rootMargin: '300px' });
     observer.observe($sentinel);
-  } catch(e) {
-    // IntersectionObserver not available; infinite scroll disabled, crawl still works
-  }
+  } catch(e) {}
 }
 
-// ── Progress UI ───────────────────────────────────────────────────────────────
-function setProgress(done, total) {
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-  $progressBar.style.width = `${pct}%`;
-  $progressLbl.textContent = done < total
-    ? `Scanning ${done} of ${total} sources…`
-    : `Done — ${state.articles.length} articles found`;
-}
-
-// ── Main crawl ────────────────────────────────────────────────────────────────
-async function crawl() {
-  if (state.crawling) return;
-
-  if (!navigator.onLine) showToast('You may be offline — trying anyway…');
-
-  state.crawling = true;
+// ── Load articles from cached JSON ────────────────────────────────────────────
+async function loadArticles() {
+  if (state.loading) return;
+  state.loading = true;
   $btn.disabled = true;
-  $btn.innerHTML = '<span class="dot-pulse"></span> Crawling…';
-  $progressWrap.classList.add('visible');
-  $emptyState && ($emptyState.hidden = true);
+  $btn.textContent = 'Refreshing…';
 
   try {
-    const fresh = await fetchAllSources((done, total) => setProgress(done, total));
-    const before = state.articles.length;
-    mergeArticles(fresh);
-    state.display = buildDisplayOrder(state.articles);
+    const res = await fetch('./data/articles.json?t=' + Date.now());
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
 
-    // Show which sources actually returned articles
-    const activeSrcIds = new Set(state.articles.map(a => a.sourceId));
-    const failedSrcs = SOURCES.filter(s => !activeSrcIds.has(s.id)).map(s => s.label);
-    const doneMsg = activeSrcIds.size + ' of ' + SOURCES.length + ' sources — ' + state.articles.length + ' articles';
-    $progressLbl.textContent = failedSrcs.length
-      ? doneMsg + ' (no response: ' + failedSrcs.join(', ') + ')'
-      : doneMsg;
-
-    // Clear rendered cards, re-render from scratch
-    const cards = $feed.querySelectorAll('.article-card');
-    cards.forEach(c => c.remove());
-    state.rendered = 0;
-
-    renderBatch(PAGE_SIZE);
-
-    const added = state.articles.length - before;
-    if (state.articles.length === 0) {
-      showToast('No articles found — sources may be temporarily unavailable');
-      $emptyState && ($emptyState.hidden = false);
-    } else if (before > 0 && added === 0) {
-      showToast('No new articles since last crawl');
+    if (data.crawledAt) {
+      $crawledAt.textContent = 'Updated ' + relativeTime(new Date(data.crawledAt));
     }
 
+    const fresh = (data.articles || []).filter(function(a) { return a.url && a.title; });
+    fresh.sort(function(a, b) { return b.dateMs - a.dateMs; });
+    state.articles = fresh;
+    state.display  = buildDisplayOrder(state.articles);
+
+    const cards = $feed.querySelectorAll('.article-card');
+    cards.forEach(function(c) { c.remove(); });
+    state.rendered = 0;
+
+    if (state.articles.length === 0) {
+      if ($emptyState) {
+        $emptyState.querySelector('h2').textContent = 'No articles yet';
+        $emptyState.querySelector('p').textContent =
+          'The server crawls every 6 hours. You can also trigger a run manually via GitHub Actions.';
+        $emptyState.hidden = false;
+      }
+    } else {
+      if ($emptyState) $emptyState.hidden = true;
+      renderBatch(PAGE_SIZE);
+    }
+
+  } catch(e) {
+    showToast('Could not load articles — ' + e.message);
+    if ($emptyState) $emptyState.hidden = false;
   } finally {
-    state.crawling = false;
+    state.loading = false;
     $btn.disabled = false;
-    $btn.textContent = 'Crawl Again';
-    // Keep progress bar visible briefly then collapse
-    setTimeout(() => $progressWrap.classList.remove('visible'), 6000);
+    $btn.textContent = '↻ Refresh';
   }
 }
 
-// ── PWA: generate touch icon at runtime ──────────────────────────────────────
+// ── PWA ───────────────────────────────────────────────────────────────────────
 function generateTouchIcon() {
   try {
     const c = document.createElement('canvas');
@@ -832,16 +563,12 @@ function generateTouchIcon() {
     ctx.textBaseline = 'middle';
     ctx.fillText('GN', 90, 90);
     document.getElementById('touch-icon').href = c.toDataURL('image/png');
-  } catch { /* canvas may be unavailable */ }
+  } catch(e) {}
 }
 
-// ── Web App Manifest (for Android/Chrome PWA) ─────────────────────────────────
 function injectManifest() {
-  const m = {
-    name: 'Good News Finder', short_name: 'Good News',
-    display: 'standalone', start_url: '.', scope: '.',
-    background_color: '#0f1117', theme_color: '#2a7d4f',
-  };
+  const m = { name: 'Good News Finder', short_name: 'Good News', display: 'standalone',
+    start_url: '.', scope: '.', background_color: '#0f1117', theme_color: '#2a7d4f' };
   const link = document.createElement('link');
   link.rel = 'manifest';
   link.href = 'data:application/manifest+json,' + encodeURIComponent(JSON.stringify(m));
@@ -849,10 +576,12 @@ function injectManifest() {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-$btn.addEventListener('click', crawl);
+$btn.addEventListener('click', loadArticles);
 generateTouchIcon();
 injectManifest();
 setupObserver();
+loadArticles(); // load immediately on open
+setInterval(loadArticles, 6 * 60 * 60 * 1000); // re-fetch every 6h if tab stays open
 </script>
 
 </body>
