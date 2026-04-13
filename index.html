@@ -16,29 +16,6 @@
   <meta name="theme-color" content="#f5f4ef" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0f1117" media="(prefers-color-scheme: dark)">
 
-  <!-- Early error catcher — must be a SEPARATE script tag so it runs even if
-       the main script below has a parse error (a script can't catch its own
-       parse failures). Shows a red banner with the error message. -->
-  <script>
-  (function() {
-    function showBanner(msg) {
-      function attach() {
-        var d = document.createElement('div');
-        d.setAttribute('style',
-          'position:fixed;top:0;left:0;right:0;background:#b00;color:#fff;' +
-          'padding:14px 16px;font:13px/1.4 monospace;z-index:99999;word-break:break-all;');
-        d.textContent = 'JS error: ' + msg;
-        document.body.appendChild(d);
-      }
-      document.body ? attach() : document.addEventListener('DOMContentLoaded', attach);
-    }
-    window.onerror = function(msg, src, line) { showBanner(msg + ' (line ' + line + ')'); };
-    window.addEventListener('unhandledrejection', function(e) {
-      showBanner(e.reason && e.reason.message ? e.reason.message : String(e.reason));
-    });
-  })();
-  </script>
-
   <style>
     /* ── Reset & base ────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -381,7 +358,7 @@
         <span class="logo-icon">◉</span>
         <h1>Good News</h1>
       </div>
-      <button id="crawl-btn" onclick="crawl()">Crawl for Good News</button>
+      <button id="crawl-btn">Crawl for Good News</button>
     </div>
     <div id="progress-wrap">
       <div id="progress-bar-track"><div id="progress-bar-fill"></div></div>
@@ -394,7 +371,6 @@
       <div class="empty-icon">◎</div>
       <h2>Find something worth reading</h2>
       <p>Tap <strong>Crawl</strong> to scan 13 sources — science journals, substacks, space feeds, and curated communities — for substantive good news.</p>
-      <p id="js-status" style="margin-top:12px;font-size:.75rem;color:#aaa;">JavaScript loading…</p>
     </div>
     <div id="sentinel"></div>
   </main>
@@ -823,16 +799,10 @@ function injectManifest() {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-// Script is at end of <body>; DOM is fully parsed. Wire button via both
-// addEventListener and the inline onclick attribute on the element.
 $btn.addEventListener('click', crawl);
 generateTouchIcon();
 injectManifest();
 setupObserver();
-
-// Confirm JS executed successfully — visible in the UI before any crawl
-var jsStatus = document.getElementById('js-status');
-if (jsStatus) jsStatus.textContent = 'JavaScript loaded OK — tap Crawl to start.';
 </script>
 
 </body>
