@@ -431,7 +431,8 @@ const HN_NEGATIVE = [
 
 // ── State ────────────────────────────────────────────────────────────────────
 const state = {
-  articles:  [],
+  articles:  [],   // full deduplicated array, sorted newest-first
+  display:   [],   // interleaved display order
   rendered:  0,
   crawling:  false,
   seenUrls:  new Set(),
@@ -669,6 +670,31 @@ function mergeArticles(fresh) {
   state.articles.sort((a, b) => b.dateMs - a.dateMs);
 }
 
+// ── Interleave by source ──────────────────────────────────────────────────────
+// Round-robins through sources so every source gets a slot before any source
+// gets a second slot. Within each round, articles are sorted newest-first so
+// the feed still reads roughly chronologically while showing source variety.
+function buildDisplayOrder(articles) {
+  const buckets = {};
+  const sourceIds = [];
+  for (const a of articles) {
+    if (!buckets[a.sourceId]) { buckets[a.sourceId] = []; sourceIds.push(a.sourceId); }
+    buckets[a.sourceId].push(a); // already newest-first from mergeArticles sort
+  }
+  const result = [];
+  let hasMore = true;
+  while (hasMore) {
+    hasMore = false;
+    const round = [];
+    for (const id of sourceIds) {
+      if (buckets[id].length > 0) { round.push(buckets[id].shift()); hasMore = true; }
+    }
+    round.sort((a, b) => b.dateMs - a.dateMs); // newest leads within each round
+    for (const a of round) result.push(a);
+  }
+  return result;
+}
+
 // ── Render ───────────────────────────────────────────────────────────────────
 function buildCard(article) {
   const el = document.createElement('article');
@@ -691,7 +717,7 @@ function buildCard(article) {
 }
 
 function renderBatch(count = PAGE_SIZE) {
-  const batch = state.articles.slice(state.rendered, state.rendered + count);
+  const batch = state.display.slice(state.rendered, state.rendered + count);
   if (!batch.length) return;
 
   const frag = document.createDocumentFragment();
@@ -699,7 +725,7 @@ function renderBatch(count = PAGE_SIZE) {
   $feed.insertBefore(frag, $sentinel);
   state.rendered += batch.length;
 
-  $spinner.hidden = state.rendered >= state.articles.length;
+  $spinner.hidden = state.rendered >= state.display.length;
 }
 
 // ── Infinite scroll ──────────────────────────────────────────────────────────
@@ -707,7 +733,7 @@ function setupObserver() {
   try {
     var observer = new IntersectionObserver(function(entries) {
       if (entries[0].isIntersecting && !state.crawling) {
-        if (state.rendered < state.articles.length) {
+        if (state.rendered < state.display.length) {
           renderBatch(PAGE_INC);
         }
       }
@@ -743,8 +769,9 @@ async function crawl() {
     const fresh = await fetchAllSources((done, total) => setProgress(done, total));
     const before = state.articles.length;
     mergeArticles(fresh);
+    state.display = buildDisplayOrder(state.articles);
 
-    // Clear rendered cards, re-render from scratch (sorted)
+    // Clear rendered cards, re-render from scratch
     const cards = $feed.querySelectorAll('.article-card');
     cards.forEach(c => c.remove());
     state.rendered = 0;
