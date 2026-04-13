@@ -389,7 +389,7 @@
 const SOURCES = [
   // RSS via allorigins proxy
   { id: 'nasa',       label: 'NASA',                  type: 'rss',     category: 'space',
-    url: 'https://www.nasa.gov/rss/dyn/breaking_news.rss' },
+    url: 'https://www.nasa.gov/feed/' },
   { id: 'positive',   label: 'Positive News',          type: 'rss',     category: 'general',
     url: 'https://www.positive.news/feed/' },
   { id: 'rtbc',       label: 'Reasons to be Cheerful', type: 'rss',     category: 'general',
@@ -397,7 +397,7 @@ const SOURCES = [
   { id: 'tpn',        label: 'The Progress Network',   type: 'rss',     category: 'general',
     url: 'https://theprogressnetwork.org/feed/' },
   { id: 'yale',       label: 'Yale E360',               type: 'rss',     category: 'science',
-    url: 'https://e360.yale.edu/rss' },
+    url: 'https://e360.yale.edu/feed' },
   { id: 'scidaily',   label: 'Science Daily',           type: 'rss',     category: 'science',
     url: 'https://www.sciencedaily.com/rss/top/science.xml' },
   { id: 'fcrunch',    label: 'Future Crunch',           type: 'rss',     category: 'general',
@@ -453,8 +453,24 @@ const $emptyState  = document.getElementById('empty-state');
 const $toast       = document.getElementById('toast');
 
 // ── Utilities ────────────────────────────────────────────────────────────────
-function proxyUrl(url) {
-  return `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+// Try two CORS proxies in sequence; returns response text or null.
+// allorigins.win is the primary but is an unreliable free service —
+// corsproxy.io is the fallback.
+const PROXIES = [
+  'https://api.allorigins.win/raw?url=',
+  'https://corsproxy.io/?',
+];
+async function proxiedText(url) {
+  for (var i = 0; i < PROXIES.length; i++) {
+    try {
+      var res = await fetch(PROXIES[i] + encodeURIComponent(url), { signal: timeoutSignal(12000) });
+      if (res.ok) {
+        var text = await res.text();
+        if (text && text.length > 100) return text;
+      }
+    } catch(e) { /* try next proxy */ }
+  }
+  return null;
 }
 
 // AbortSignal.timeout() was added in Safari 16. Polyfill for older iOS.
@@ -527,9 +543,8 @@ function normalise(raw, source) {
 // ── Fetchers ─────────────────────────────────────────────────────────────────
 async function fetchRSS(source) {
   try {
-    const res = await fetch(proxyUrl(source.url), { signal: timeoutSignal(12000) });
-    if (!res.ok) return [];
-    const xml = await res.text();
+    const xml = await proxiedText(source.url);
+    if (!xml) return [];
     const doc = new DOMParser().parseFromString(xml, 'application/xml');
     if (doc.querySelector('parsererror')) return [];
 
@@ -771,6 +786,14 @@ async function crawl() {
     mergeArticles(fresh);
     state.display = buildDisplayOrder(state.articles);
 
+    // Show which sources actually returned articles
+    const activeSrcIds = new Set(state.articles.map(a => a.sourceId));
+    const failedSrcs = SOURCES.filter(s => !activeSrcIds.has(s.id)).map(s => s.label);
+    const doneMsg = activeSrcIds.size + ' of ' + SOURCES.length + ' sources — ' + state.articles.length + ' articles';
+    $progressLbl.textContent = failedSrcs.length
+      ? doneMsg + ' (no response: ' + failedSrcs.join(', ') + ')'
+      : doneMsg;
+
     // Clear rendered cards, re-render from scratch
     const cards = $feed.querySelectorAll('.article-card');
     cards.forEach(c => c.remove());
@@ -791,7 +814,7 @@ async function crawl() {
     $btn.disabled = false;
     $btn.textContent = 'Crawl Again';
     // Keep progress bar visible briefly then collapse
-    setTimeout(() => $progressWrap.classList.remove('visible'), 2000);
+    setTimeout(() => $progressWrap.classList.remove('visible'), 6000);
   }
 }
 
