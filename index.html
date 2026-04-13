@@ -539,7 +539,8 @@ async function fetchRSS(source) {
     return items.map(el => {
       const get = (sel, attr) => {
         const node = el.querySelector(sel);
-        return attr ? node?.getAttribute(attr) : node?.textContent?.trim() || '';
+        if (!node) return '';
+        return attr ? (node.getAttribute(attr) || '') : (node.textContent || '').trim();
       };
 
       const title = get('title');
@@ -577,7 +578,7 @@ async function fetchReddit(source) {
     );
     if (!res.ok) return [];
     const json = await res.json();
-    const posts = json?.data?.children || [];
+    const posts = (json && json.data && json.data.children) ? json.data.children : [];
 
     return posts
       .map(c => c.data)
@@ -703,14 +704,18 @@ function renderBatch(count = PAGE_SIZE) {
 
 // ── Infinite scroll ──────────────────────────────────────────────────────────
 function setupObserver() {
-  const observer = new IntersectionObserver(entries => {
-    if (entries[0].isIntersecting && !state.crawling) {
-      if (state.rendered < state.articles.length) {
-        renderBatch(PAGE_INC);
+  try {
+    var observer = new IntersectionObserver(function(entries) {
+      if (entries[0].isIntersecting && !state.crawling) {
+        if (state.rendered < state.articles.length) {
+          renderBatch(PAGE_INC);
+        }
       }
-    }
-  }, { rootMargin: '300px' });
-  observer.observe($sentinel);
+    }, { rootMargin: '300px' });
+    observer.observe($sentinel);
+  } catch(e) {
+    // IntersectionObserver not available; infinite scroll disabled, crawl still works
+  }
 }
 
 // ── Progress UI ───────────────────────────────────────────────────────────────
@@ -794,12 +799,17 @@ function injectManifest() {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  generateTouchIcon();
-  injectManifest();
-  setupObserver();
-  $btn.addEventListener('click', crawl);
-});
+// Show any JS errors visibly (helps debug on iPhone where DevTools aren't easy)
+window.onerror = function(msg, src, line) {
+  showToast('JS error: ' + msg + ' (line ' + line + ')', 8000);
+};
+
+// Script is at end of <body> so DOM is already ready — no need to wait for
+// DOMContentLoaded. Attach button first so a later setup error can't block it.
+$btn.addEventListener('click', crawl);
+generateTouchIcon();
+injectManifest();
+setupObserver();
 </script>
 
 </body>
