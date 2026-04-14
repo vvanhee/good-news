@@ -9,7 +9,6 @@ import re
 import time
 import urllib.request
 import xml.etree.ElementTree as ET
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from email.utils import parsedate_to_datetime
 
 # ── Sources ───────────────────────────────────────────────────────────────────
@@ -22,12 +21,10 @@ RSS_SOURCES = [
      'url': 'https://reasonstobecheerful.world/feed/'},
     {'id': 'tpn',      'label': 'The Progress Network',   'category': 'general',
      'url': 'https://theprogressnetwork.org/feed/'},
-    {'id': 'yale',     'label': 'Yale E360',               'category': 'science',
-     'url': 'https://e360.yale.edu/feed.xml',   'filter': True},
-    {'id': 'scidaily', 'label': 'Science Daily',           'category': 'science',
-     'url': 'https://www.sciencedaily.com/rss/top/science.xml', 'filter': True},
     {'id': 'fcrunch',  'label': 'Future Crunch',           'category': 'general',
      'url': 'https://futurecrunch.beehiiv.com/feed'},
+    {'id': 'gnn',      'label': 'Good News Network',       'category': 'general',
+     'url': 'https://www.goodnewsnetwork.org/feed/'},
 ]
 
 REDDIT_SOURCES = [
@@ -38,18 +35,6 @@ REDDIT_SOURCES = [
     {'id': 'r-futurology', 'label': 'r/Futurology',       'category': 'general', 'sub': 'Futurology'},
 ]
 
-HN_POSITIVE = [
-    'launch', 'launches', 'launched', 'discover', 'discovered', 'discovery', 'breakthrough',
-    'first ever', 'first time', 'cure', 'cured', 'solved', 'solution', 'invented', 'invention',
-    'achieve', 'achieved', 'achievement', 'milestone', 'success', 'successful',
-    'developed', 'development', 'release', 'released', 'improve', 'improved', 'improvement',
-    'record', 'historic', 'new study', 'new research', 'study finds', 'research finds',
-    'award', 'awarded', 'saved', 'rescue', 'rescued', 'restore', 'restored',
-    'open source', 'open-source', 'show hn', 'announces', 'announced',
-]
-
-# Applied to HN (combined with positive requirement) and to RSS sources
-# marked filter=True (negative check only — science titles don't need positive keywords).
 NEGATIVE_TERMS = [
     # Security / crime
     'breach', 'breached', 'hack', 'hacked', 'vulnerab',
@@ -152,13 +137,6 @@ def title_passes_negative_filter(title):
     """Returns False if the title contains any negative/alarming framing term."""
     lo = title.lower()
     return not any(neg in lo for neg in NEGATIVE_TERMS)
-
-def title_passes_hn_filter(title):
-    """HN requires a positive signal AND no negative terms."""
-    lo = title.lower()
-    if any(neg in lo for neg in NEGATIVE_TERMS):
-        return False
-    return any(pos in lo for pos in HN_POSITIVE)
 
 # ── RSS parser ────────────────────────────────────────────────────────────────
 def strip_namespaces(xml_text):
@@ -271,51 +249,6 @@ def crawl_reddit():
             print(f'     ERROR: {e}')
     return all_articles
 
-def fetch_hn_item(story_id):
-    text = fetch_url(f'https://hacker-news.firebaseio.com/v0/item/{story_id}.json', timeout=8)
-    if not text:
-        return None
-    try:
-        return json.loads(text)
-    except Exception:
-        return None
-
-def crawl_hn():
-    print('HN   Hacker News (best stories, filtering top 200)')
-    text = fetch_url('https://hacker-news.firebaseio.com/v0/beststories.json')
-    if not text:
-        return []
-    try:
-        ids = json.loads(text)[:200]
-    except Exception:
-        return []
-
-    articles = []
-    with ThreadPoolExecutor(max_workers=20) as ex:
-        futures = {ex.submit(fetch_hn_item, sid): sid for sid in ids}
-        for future in as_completed(futures):
-            item = future.result()
-            if not item:
-                continue
-            if not item.get('url') or not item.get('title'):
-                continue
-            if item.get('dead') or item.get('deleted'):
-                continue
-            if not title_passes_hn_filter(item['title']):
-                continue
-            articles.append({
-                'url':      item['url'],
-                'title':    item['title'],
-                'excerpt':  truncate(strip_html(item.get('text', '') or '')),
-                'source':   'Hacker News',
-                'sourceId': 'hn',
-                'category': 'tech',
-                'dateMs':   int(item.get('time', time.time()) * 1000),
-            })
-
-    print(f'     {len(articles)} articles (after filter)')
-    return articles
-
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
     os.makedirs('data', exist_ok=True)
@@ -323,7 +256,6 @@ def main():
     all_articles = []
     all_articles.extend(crawl_rss())
     all_articles.extend(crawl_reddit())
-    all_articles.extend(crawl_hn())
 
     # Deduplicate by URL
     seen, deduped = set(), []
