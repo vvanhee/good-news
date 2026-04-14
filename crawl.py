@@ -25,6 +25,8 @@ RSS_SOURCES = [
      'url': 'https://futurecrunch.beehiiv.com/feed'},
     {'id': 'gnn',      'label': 'Good News Network',       'category': 'general',
      'url': 'https://www.goodnewsnetwork.org/feed/'},
+    {'id': 'ggg',      'label': 'Good Good Good',          'category': 'general',
+     'url': 'https://www.goodgoodgood.co/articles/rss.xml'},
 ]
 
 REDDIT_SOURCES = [
