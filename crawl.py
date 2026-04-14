@@ -14,27 +14,17 @@ from email.utils import parsedate_to_datetime
 # ── Sources ───────────────────────────────────────────────────────────────────
 RSS_SOURCES = [
     {'id': 'nasa',     'label': 'NASA',                  'category': 'space',
-     'url': 'https://www.nasa.gov/news-release/feed'},
+     'url': 'https://science.nasa.gov/feed/'},
     {'id': 'positive', 'label': 'Positive News',          'category': 'general',
      'url': 'https://www.positive.news/feed/'},
     {'id': 'rtbc',     'label': 'Reasons to be Cheerful', 'category': 'general',
      'url': 'https://reasonstobecheerful.world/feed/'},
     {'id': 'tpn',      'label': 'The Progress Network',   'category': 'general',
      'url': 'https://theprogressnetwork.org/feed/'},
-    {'id': 'fcrunch',  'label': 'Future Crunch',           'category': 'general',
-     'url': 'https://futurecrunch.beehiiv.com/feed'},
     {'id': 'gnn',      'label': 'Good News Network',       'category': 'general',
      'url': 'https://www.goodnewsnetwork.org/feed/'},
     {'id': 'ggg',      'label': 'Good Good Good',          'category': 'general',
      'url': 'https://www.goodgoodgood.co/articles/rss.xml'},
-]
-
-REDDIT_SOURCES = [
-    {'id': 'r-uplifting',  'label': 'r/UpliftingNews',   'category': 'human',   'sub': 'UpliftingNews'},
-    {'id': 'r-hbb',        'label': 'r/HumansBeingBros', 'category': 'human',   'sub': 'HumansBeingBros'},
-    {'id': 'r-space',      'label': 'r/space',            'category': 'space',   'sub': 'space'},
-    {'id': 'r-science',    'label': 'r/science',          'category': 'science', 'sub': 'science'},
-    {'id': 'r-futurology', 'label': 'r/Futurology',       'category': 'general', 'sub': 'Futurology'},
 ]
 
 NEGATIVE_TERMS = [
@@ -218,46 +208,12 @@ def crawl_rss():
             all_articles.extend(arts)
     return all_articles
 
-def crawl_reddit():
-    all_articles = []
-    for src in REDDIT_SOURCES:
-        print(f'RDDT {src["label"]}')
-        url  = f'https://www.reddit.com/r/{src["sub"]}.json?limit=25&raw_json=1'
-        text = fetch_url(url)
-        if not text:
-            continue
-        try:
-            data  = json.loads(text)
-            posts = data.get('data', {}).get('children', [])
-            count = 0
-            for post in posts:
-                p = post.get('data', {})
-                if p.get('stickied') or p.get('score', 0) < 50:
-                    continue
-                link    = p.get('url') or f'https://www.reddit.com{p.get("permalink", "")}'
-                excerpt = p.get('selftext', '').replace('\n', ' ')
-                all_articles.append({
-                    'url':      link,
-                    'title':    p.get('title', ''),
-                    'excerpt':  truncate(excerpt),
-                    'source':   src['label'],
-                    'sourceId': src['id'],
-                    'category': src['category'],
-                    'dateMs':   int(p.get('created_utc', time.time()) * 1000),
-                })
-                count += 1
-            print(f'     {count} articles')
-        except Exception as e:
-            print(f'     ERROR: {e}')
-    return all_articles
-
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
     os.makedirs('data', exist_ok=True)
 
     all_articles = []
     all_articles.extend(crawl_rss())
-    all_articles.extend(crawl_reddit())
 
     # Deduplicate by URL
     seen, deduped = set(), []
